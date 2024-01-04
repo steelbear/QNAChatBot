@@ -1,4 +1,6 @@
 import time
+
+import requests
 import streamlit as st
 
 
@@ -17,11 +19,15 @@ def update_messages_and_status():
 
 
 def request_to_server():
-    # stub server response
-    time.sleep(5)
+    response = requests.post('http://localhost:8000/api/ask',
+                             json={'question': st.session_state['question']},
+                             ).json()
+
+    print(response)
+    
     st.session_state['chat_messages'].append({
         'role': 'assistant',
-        'content': 'You said: ' + question
+        'content': response['content']
     })
 
 
