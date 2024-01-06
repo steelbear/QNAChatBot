@@ -2,6 +2,14 @@ import requests
 import streamlit as st
 
 
+def show_error(message: str, previous_question: str):
+    st.error(message)
+    st.button('Retry')
+    # Keep user's previous question
+    st.session_state['question'] = previous_question
+    st.stop()
+
+
 def update_messages_and_status():
     question = st.session_state['question']
 
@@ -24,20 +32,17 @@ def request_to_server(question: str):
         response.raise_for_status()
         response = response.json()
     except requests.ConnectionError:
-        st.error('Failed to connect to the server. Try again.')
-        st.button('Retry')
-        st.session_state['question'] = question
-        st.stop()
+        show_error('Failed to connect to the server. Try again.', question)
     except requests.HTTPError:
-        st.error(str(response.status_code) + ' ' + response.reason)
-        st.button('Retry')
-        st.session_state['question'] = question
-        st.stop()
+        show_error(str(response.status_code) + ' ' + response.reason, question)
     else:
-        st.session_state['chat_messages'].append({
-            'role': 'assistant',
-            'content': response['content']
-        })
+        if response['error']:
+            show_error(response['error'], question)
+        else:
+            st.session_state['chat_messages'].append({
+                'role': 'assistant',
+                'content': response['content']
+            })
 
 
 # chat messages initialization

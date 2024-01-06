@@ -7,3 +7,4 @@ class Question(BaseModel):
 
 class Response(BaseModel):
     content: str
+    error: str|None
