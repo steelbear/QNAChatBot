@@ -2,12 +2,30 @@ import requests
 import streamlit as st
 
 
-def show_error(message: str, previous_question: str):
+def show_error(message, previous_question):
     st.error(message)
     st.button('Retry')
     # Keep user's previous question
     st.session_state['question'] = previous_question
     st.stop()
+    
+
+@st.cache_data
+def upload_file(file):
+    try:
+        response = requests.post('http://localhost:8000/api/upload', files={'file': file})
+        response.raise_for_status()
+        response = response.json()
+    except requests.ConnectionError:
+        st.error('Failed to connect to the server. Try again.')
+    except requests.HTTPError:
+        st.error(str(response.status_code) + ' ' + response.reason)
+    else:
+        if response['error']:
+            show_error(response['error'], question)
+        else:
+            print('filename:', response['content'])
+            st.session_state['filename'] = response['content']
 
 
 def update_messages_and_status():
@@ -24,11 +42,9 @@ def update_messages_and_status():
     st.session_state['chat_running'] = True
 
 
-def request_to_server(question: str):
+def request_to_server(question, filename):
     try:
-        response = requests.post('http://localhost:8000/api/ask',
-                                json={'question': question},
-                                )
+        response = requests.post('http://localhost:8000/api/ask', json={'question': question, 'filename': filename})
         response.raise_for_status()
         response = response.json()
     except requests.ConnectionError:
@@ -43,6 +59,11 @@ def request_to_server(question: str):
                 'role': 'assistant',
                 'content': response['content']
             })
+
+
+file = st.file_uploader('the file what model read')
+if file is not None:
+    upload_file(file)
 
 
 # chat messages initialization
@@ -67,7 +88,7 @@ for message in st.session_state['chat_messages']:
 if st.session_state['chat_running']:
     with st.chat_message('assistant'):
         with st.spinner('Thinking...'):  # show the status requesting the answer
-            request_to_server(st.session_state['question'])
+            request_to_server(st.session_state['question'], st.session_state['filename'])
             # change chat status after gotten response
             st.session_state['chat_running'] = False
             # rerun to show the answer

@@ -5,6 +5,7 @@ import chromadb
 from chromadb.utils import embedding_functions
 from dotenv import load_dotenv
 from pypdf import PdfReader
+from tqdm import tqdm
 
 from model import Document
 
@@ -22,7 +23,7 @@ class VectorDB:
         self.collection = client_db.get_or_create_collection(db_name, embedding_function=openai_embedding)
 
     def insert(self, document: Document) -> Document:
-        self.collection.add(
+        self.collection.upsert(
             ids=[document.id],
             documents=[document.content],
             metadatas=[document.metadata.model_dump()]
@@ -30,11 +31,17 @@ class VectorDB:
 
         return document
     
-    def upload_pdf(self, file, chunk_size=1000, chunk_overlap=0):
-        filename = os.path.basename(file.name)
+    def exist_file(self, filename):
+        result = self.collection.get(where={'filename': filename}, limit=1)
+        return len(result['ids']) > 0
+    
+    def upload_pdf(self, file, filename, chunk_size=1000, chunk_overlap=0):
+        if self.exist_file(filename):
+            return
+        
         reader = PdfReader(file)
 
-        for page_num, page in enumerate(reader.pages):
+        for page_num, page in tqdm(enumerate(reader.pages), total=len(reader.pages)):
             page_text = page.extract_text()
             chunks = [page_text[i:i+1000] for i in range(0, len(page_text), chunk_size-chunk_overlap)]
             
@@ -46,7 +53,6 @@ class VectorDB:
                 )
 
                 self.insert(document)
-
     
     def delete(self, id: str):
         self.collection.delete(ids=[id])
@@ -70,5 +76,5 @@ class VectorDB:
 if __name__ == '__main__':
     vectordb = VectorDB('test_db')
     with open('../example.pdf', 'rb') as f:
-        vectordb.upload_pdf(f)
+        vectordb.upload_pdf(f, 'example.pdf')
         result = vectordb.query('example.pdf', 'What is Transformer?', 3)
